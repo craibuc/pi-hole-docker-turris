@@ -68,3 +68,13 @@ Assumes: SSH alias `router`, Docker on the router, data under `/srv/docker/pihol
 ## Rollback
 
 Delete the added sections (check the indexes first with `uci show firewall | grep -n forwarding`), then `uci delete dockerd.firewall.extra_iptables_args`, commit, and reload the firewall. Or restore `/etc/config/*` from the backup tarball.
+
+## Client names in the Pi-hole UI
+
+kresd does not serve DHCP lease names, so `sync-leases.sh` turns `/tmp/dhcp.leases` into an `addn-hosts` file that Pi-hole reads.
+
+    scp sync-leases.sh router:/srv/docker/pihole/
+    ssh router 'echo "addn-hosts=/etc/dnsmasq.d/leases.hosts" > /srv/docker/pihole/etc-dnsmasq.d/02-leases.conf'
+    ssh router 'echo "* * * * * /srv/docker/pihole/sync-leases.sh" >> /etc/crontabs/root && /etc/init.d/cron enable && /etc/init.d/cron restart'
+
+Leases with no hostname (`*`) are skipped and still show as IPs.
