@@ -2,10 +2,13 @@
 
 Pi-hole on a Turris Omnia (Turris OS 9.1.1, HBS).
 
-Design: Pi-hole runs in Docker on ports `5354`/`8080`/`8443` so it never fights kresd
+Design: Pi-hole runs in Docker with host networking (so it sees real client IPs) on ports `5354`/`8080`/`8443` so it never fights kresd
 (port 53) or LuCI/lighttpd (80/443) for a port. LAN clients are pointed at it by a
 firewall rule that redirects port-53 traffic to `5354`. Pi-hole forwards what it does
-not block back to kresd.
+not block back to kresd on `127.0.0.1:53`.
+
+Client names: kresd does not serve DHCP lease names, so `sync-leases.sh` (cron, every minute)
+converts `/tmp/dhcp.leases` into a hosts file Pi-hole reads. See SETUP.md.
 
 Upstream choice: kresd is used so DNSSEC signatures are verified on the router itself.
 The ISP resolvers (206.55.176.52/53) do validate DNSSEC too — verified with `dig`: they
@@ -13,7 +16,7 @@ set `ad` on signed names and SERVFAIL on `dnssec-failed.org` — so the only thi
 validation buys is not having to trust the plaintext hop between router and ISP.
 Forwarding straight to the ISP instead is a reasonable trade; swap `FTLCONF_dns_upstreams`.
 
-    client :53 ──DNAT──▶ router :5354 ──▶ Pi-hole ──▶ router :53 (kresd) ──▶ internet
+    client :53 ──DNAT──▶ router :5354 (Pi-hole, host net) ──▶ 127.0.0.1:53 (kresd) ──▶ internet
 
 ## Router environment (verified 2026-08-24 over SSH)
 
@@ -66,9 +69,11 @@ whole LAN, so keep a way in that does not depend on DNS (the router's IP, not a 
 
 This also catches devices with hardcoded DNS (8.8.8.8 and friends) that ignore DHCP.
 
-**No redirect loop here — verified.** `docker0` sits in its own `docker` firewall zone
-(`firewall.docker.network='docker'`), not in `lan`, so a rule scoped to `src='lan'` will
-not catch Pi-hole's own upstream queries to kresd. There are also currently no other
+**No redirect loop here.** The rule is scoped to `src='lan'`; Pi-hole's own upstream queries
+to kresd go to `127.0.0.1` on the router and never enter from the LAN zone.
+
+**Why host networking:** the redirect is a DNAT on the router itself, so with a bridge it hit
+`docker-proxy` and every client appeared as `172.17.0.1` (see TROUBLESHOOTING.md). There are also currently no other
 `redirect` rules to conflict with.
 
 To roll back, delete the rule and restart the firewall:

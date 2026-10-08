@@ -57,7 +57,8 @@ else
   echo "firewall: added docker -> wan forwarding"; changed=1
 fi
 
-# 2. LAN may reach Pi-hole's published ports (post-DNAT: 53 dns, 80 http, 443 https).
+# 2. Legacy from the bridge setup (Pi-hole now uses host networking, so this rule is unused);
+#    kept so existing routers and rollbacks to a bridge setup keep working.
 if has_section rule name=Allow-LAN-to-Pihole; then
   echo "firewall: Allow-LAN-to-Pihole rule already present"
 else
@@ -71,8 +72,8 @@ else
   echo "firewall: added Allow-LAN-to-Pihole rule"; changed=1
 fi
 
-# 2b. Redirect LAN DNS (port 53) to Pi-hole's published port. Scoped to src=lan so Pi-hole's own
-#     upstream queries to kresd (172.17.0.1:53, from the docker zone) are not looped back to itself.
+# 2b. Redirect LAN DNS (port 53) to Pi-hole's port 5354 (host network). Scoped to src=lan so Pi-hole's own
+#     upstream queries to kresd (127.0.0.1:53, not from lan) are not looped back to itself.
 if has_section redirect name=LAN-DNS-to-Pihole; then
   echo "firewall: LAN-DNS-to-Pihole redirect already present"
 else
@@ -105,7 +106,21 @@ REMOTE
 
 step "Copy compose files and (re)start Pi-hole"
 ssh_r "mkdir -p $REMOTE_DIR && [ -f $REMOTE_DIR/docker-compose.yaml ] && cp $REMOTE_DIR/docker-compose.yaml $REMOTE_DIR/docker-compose.yaml.bak || true"
-scp -q -o ClearAllForwardings=yes docker-compose.yaml .env "$HOST:$REMOTE_DIR/"
+scp -q -o ClearAllForwardings=yes docker-compose.yaml .env sync-leases.sh "$HOST:$REMOTE_DIR/"
+
+step "Client names: lease -> hosts sync (addn-hosts config + cron, idempotent)"
+ssh_r "sh -s" <<REMOTE
+set -eu
+cd $REMOTE_DIR
+mkdir -p etc-dnsmasq.d
+echo 'addn-hosts=/etc/dnsmasq.d/leases.hosts' > etc-dnsmasq.d/02-leases.conf
+chmod +x sync-leases.sh
+./sync-leases.sh
+grep -q sync-leases.sh /etc/crontabs/root 2>/dev/null || echo "* * * * * $REMOTE_DIR/sync-leases.sh" >> /etc/crontabs/root
+/etc/init.d/cron enable
+/etc/init.d/cron restart
+REMOTE
+
 ssh_r "cd $REMOTE_DIR && docker compose up -d"
 
 step "Wait for the container to become healthy (first run downloads blocklists; up to ~3 min)"
