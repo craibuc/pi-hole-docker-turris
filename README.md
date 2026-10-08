@@ -73,8 +73,7 @@ This also catches devices with hardcoded DNS (8.8.8.8 and friends) that ignore D
 to kresd go to `127.0.0.1` on the router and never enter from the LAN zone.
 
 **Why host networking:** the redirect is a DNAT on the router itself, so with a bridge it hit
-`docker-proxy` and every client appeared as `172.17.0.1` (see TROUBLESHOOTING.md). There are also currently no other
-`redirect` rules to conflict with.
+`docker-proxy` and every client appeared as `172.17.0.1` (see TROUBLESHOOTING.md).
 
 To roll back, delete the rule and restart the firewall:
 
