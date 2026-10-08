@@ -6,8 +6,9 @@ Assumes: SSH alias `router`, Docker on the router, data under `/srv/docker/pihol
 
 1. **Prepare `.env`** next to `docker-compose.yaml` with at least `WEB_API_PASSWORD=...`.
 2. **Compose file requirements** (already in `docker-compose.yaml`):
-   - `network_mode: bridge`, so the container uses `docker0`, the only bridge in the firewall's `docker` zone.
-   - Upstream `FTLCONF_dns_upstreams: 172.17.0.1#53`, the router's resolver via the docker0 gateway. Using `192.168.1.1` fails because kresd replies from `172.17.0.1`.
+   - `network_mode: host`, so Pi-hole sees real client IPs. With a bridge, the 53 -> 5354 redirect lands on `docker-proxy` and every client shows as `172.17.0.1`. FTL is moved to DNS `5354` and web `8080`/`8443` via `FTLCONF_dns_port` / `FTLCONF_webserver_port`.
+   - Upstream `FTLCONF_dns_upstreams: 127.0.0.1#53` (kresd, via the host network).
+   - The `docker0`-zone firewall steps below (forwarding, `Allow-LAN-to-Pihole`, `DOCKER-USER`) were needed for the old bridge setup and are harmless but no longer required for Pi-hole.
 3. **Back up the router config:**
    ```sh
    ssh router 'tar czf - /etc/config/firewall /etc/config/dockerd /srv/docker/pihole' > router-backup.tgz

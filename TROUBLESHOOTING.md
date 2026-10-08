@@ -15,6 +15,7 @@ Pi-hole never started. On an empty data directory it runs gravity first, which n
 | 3 | `DOCKER-USER` rejected everything `eth2` -> `docker0`, including replies. Comes from dockerd `blocked_interfaces`. | `tcpdump`: replies arrived on `eth2`, never reached `docker0`. | `dockerd.firewall.extra_iptables_args='-m conntrack --ctstate NEW'` |
 | 4 | Upstream `192.168.1.1` timed out: kresd replies from `172.17.0.1`, and the container drops replies from an address it did not query. | Container -> 9.9.9.9 worked, container -> 192.168.1.1 did not; capture showed the reply source. | Upstream `172.17.0.1#53` |
 | 5 | LAN could not reach published ports: no `lan` -> `docker` forwarding. | UI returned 302 from the router itself, LAN requests dropped. | Narrow rule `Allow-LAN-to-Pihole` (ports 53, 80, 443) |
+| 6 | Every client logged as `172.17.0.1`. The fw redirect (53 -> 5354) is a DNAT on the router, so it hit `docker-proxy` on 5354 instead of Docker's own DNAT rule. | `netstat -lnp` showed `docker-proxy` on 5354; redirect has no `dest_ip`. | `network_mode: host` with `FTLCONF_dns_port=5354`, upstream `127.0.0.1#53` (rollback: `docker-compose.yaml.prehost` on the router) |
 
 ## Router changes (persistent)
 

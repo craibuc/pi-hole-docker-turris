@@ -3,45 +3,24 @@ services:
   pihole:
     container_name: pihole
     image: pihole/pihole:latest
-    # Resolver for the container's OWN lookups (blocklist downloads, updates).
-    # Kept off the router so it can't loop through the port-53 DNAT rule.
-    dns:
-      - 9.9.9.9
-    # Use the default docker0 bridge: the Turris firewall's `docker` zone only
-    # covers docker0, so a compose-created bridge gets no outbound traffic.
-    network_mode: bridge
-    ports:
-      # DNS: Map host 5354 to container 53
-      - "5354:53/tcp"
-      - "5354:53/udp"
-      # Web Interface: Map host 8080 to container 80
-      - "8080:80/tcp"
-      # Web Interface SSL: Map host 8443 to container 443
-      - "8443:443/tcp"
-      # DNS Ports (used by kresd)
-      # - "53:53/tcp"
-      # - "53:53/udp"
-      # 80 assigned to lighttpd (LuCI on OpenWrt uses 80 as well)
-      # 443 assigned to lighttpd SSL (luCI on OpenWrt uses 443 as well)
-      # Default HTTP Port
-      # - "80:80/tcp"
-      # Default HTTPs Port. FTL will generate a self-signed certificate
-      # - "443:443/tcp"
-      # Uncomment the line below if you are using Pi-hole as your DHCP server
-      #- "67:67/udp"
-      # Uncomment the line below if you are using Pi-hole as your NTP server
-      #- "123:123/udp"
+    # Host networking: the port-53 redirect (53 -> 5354) is a DNAT on the router itself, so with
+    # a bridge it lands on docker-proxy, which masks every client as 172.17.0.1. On the host
+    # network Pi-hole sees real client IPs. FTL is moved off 53 (kresd owns it) and off 80/443
+    # (LuCI) via the FTLCONF_* ports below.
+    network_mode: host
     environment:
       # Set the appropriate timezone for your location (https://en.wikipedia.org/wiki/List_of_tz_database_time_zones), e.g:
       TZ: 'America/Chicago'
       # Set a password to access the web interface. Not setting one will result in a random password being assigned
       FTLCONF_webserver_api_password: '${WEB_API_PASSWORD:?set WEB_API_PASSWORD in .env}'
-      # If using Docker's default `bridge` network setting the dns listening mode should be set to 'ALL'
-      FTLCONF_dns_listeningMode: 'ALL'
-      # Forward to the Turris resolver (kresd) so DNSSEC validation and its cache still apply.
-      # Use the docker0 gateway, not the LAN IP: kresd answers queries from the docker0
-      # interface address, so a reply to 192.168.1.1 arrives from 172.17.0.1 and is dropped.
-      FTLCONF_dns_upstreams: '${ROUTER_DOCKER_IP:-172.17.0.1}#53'
+      # DNS on 5354 (kresd owns 53); web UI on 8080 (http) / 8443 (https)
+      FTLCONF_dns_port: '5354'
+      FTLCONF_webserver_port: '8080,8443s'
+      # LOCAL = only answer clients on a directly attached subnet
+      FTLCONF_dns_listeningMode: 'LOCAL'
+      # Forward to the Turris resolver (kresd, listening on all addresses) so DNSSEC
+      # validation and its cache still apply.
+      FTLCONF_dns_upstreams: '${ROUTER_DNS:-127.0.0.1}#53'
       # Required for the /etc/dnsmasq.d bind mount below to be read at all in v6
       FTLCONF_misc_etc_dnsmasq_d: 'true'
     # Bind mounts to the existing directories under /srv/docker/pihole on the router
