@@ -4,7 +4,7 @@
 
 Assumes: SSH alias `router`, Docker on the router, data under `/srv/docker/pihole`, LAN `192.168.1.0/24`, Docker's default bridge `docker0` (gateway `172.17.0.1`).
 
-1. **Prepare `.env`** next to `docker-compose.yaml` with at least `WEB_API_PASSWORD=...`.
+1. **Prepare `.env`**: `cp .env.example .env`, then set at least `WEB_API_PASSWORD`.
 2. **Compose file requirements** (already in `docker-compose.yaml`):
    - `network_mode: host`, so Pi-hole sees real client IPs. With a bridge, the 53 -> 5354 redirect lands on `docker-proxy` and every client shows as `172.17.0.1`. FTL is moved to DNS `5354` and web `8080`/`8443` via `FTLCONF_dns_port` / `FTLCONF_webserver_port`.
    - Upstream `FTLCONF_dns_upstreams: 127.0.0.1#53` (kresd, via the host network).
