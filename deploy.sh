@@ -23,6 +23,7 @@ ssh_r 'docker compose version >/dev/null && uci -q show firewall >/dev/null' \
 step "Back up router config to ./backup-<timestamp>/ (contains .env; git-ignored)"
 backup="backup-$(date +%Y%m%d-%H%M%S)"
 mkdir -p "$backup"
+ssh_r "mkdir -p $REMOTE_DIR"   # fresh router: the dir must exist or tar exits non-zero
 ssh_r "tar czf - /etc/config/firewall /etc/config/dhcp /etc/config/network /etc/config/dockerd $REMOTE_DIR 2>/dev/null" > "$backup/router-config.tgz"
 cp docker-compose.yaml .env "$backup/"
 echo "saved $backup/"
@@ -133,9 +134,9 @@ echo "container health: ${status:-unknown}"
 
 step "Verify from this machine"
 fail=0
-code="$(curl -s -m 5 -o /dev/null -w '%{http_code}' "http://$(ssh_r 'uci -q get network.lan.ipaddr' || echo 192.168.1.1):$UI_PORT/admin/" || true)"
+code="$(curl -s -m 5 -o /dev/null -w '%{http_code}' "http://$(ssh_r 'uci -q get network.lan.ipaddr | cut -d/ -f1' || echo 192.168.1.1):$UI_PORT/admin/" || true)"
 echo "UI http status: $code (expect 200/302)"; [[ "$code" =~ ^(200|302)$ ]] || fail=1
-router_ip="$(ssh_r 'uci -q get network.lan.ipaddr' || echo 192.168.1.1)"
+router_ip="$(ssh_r 'uci -q get network.lan.ipaddr | cut -d/ -f1' || echo 192.168.1.1)"
 ok="$(dig @"$router_ip" -p "$DNS_PORT" example.com +short +time=3 +tries=1 | head -1)"
 echo "example.com   -> ${ok:-<no answer>}"; [[ -n "$ok" ]] || fail=1
 blocked="$(dig @"$router_ip" -p "$DNS_PORT" doubleclick.net +short +time=3 +tries=1 | head -1)"
