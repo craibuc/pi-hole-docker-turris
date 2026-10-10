@@ -134,9 +134,10 @@ echo "container health: ${status:-unknown}"
 
 step "Verify from this machine"
 fail=0
-code="$(curl -s -m 5 -o /dev/null -w '%{http_code}' "http://$(ssh_r 'uci -q get network.lan.ipaddr | cut -d/ -f1' || echo 192.168.1.1):$UI_PORT/admin/" || true)"
+router_ip="$(ssh_r 'uci -q get network.lan.ipaddr | cut -d/ -f1')"
+[[ -n "$router_ip" ]] || { echo "could not read network.lan.ipaddr from $HOST" >&2; exit 1; }
+code="$(curl -s -m 5 -o /dev/null -w '%{http_code}' "http://$router_ip:$UI_PORT/admin/" || true)"
 echo "UI http status: $code (expect 200/302)"; [[ "$code" =~ ^(200|302)$ ]] || fail=1
-router_ip="$(ssh_r 'uci -q get network.lan.ipaddr | cut -d/ -f1' || echo 192.168.1.1)"
 ok="$(dig @"$router_ip" -p "$DNS_PORT" example.com +short +time=3 +tries=1 | head -1)"
 echo "example.com   -> ${ok:-<no answer>}"; [[ -n "$ok" ]] || fail=1
 blocked="$(dig @"$router_ip" -p "$DNS_PORT" doubleclick.net +short +time=3 +tries=1 | head -1)"
